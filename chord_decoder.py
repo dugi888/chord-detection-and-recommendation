@@ -5,7 +5,7 @@ import librosa.display
 
 
 class ChordDecoder:
-    def __init__(self, sample_rate=22050, buffer_duration=1, silence_threshold=0.001):
+    def __init__(self, sample_rate=22050, buffer_duration=1, silence_threshold=0.001, smoothing_window=5):
         self.current_chord = "None"
         self.sample_rate = sample_rate
         self.buffer_duration = buffer_duration
@@ -27,6 +27,8 @@ class ChordDecoder:
             'B': [11, 3, 6],
             'Bm': [11, 2, 6],
         }
+        self.smoothing_window = smoothing_window
+        self.previous_chords = []  # To smooth chord transitions
 
     def get_chord(self):
         return self.current_chord
@@ -38,6 +40,7 @@ class ChordDecoder:
         detected_chord = None
         max_similarity = 0
 
+        # Compare with each chord template
         for chord, indices in self.chord_templates.items():
             template = np.zeros(12)
             template[indices] = 1
@@ -46,15 +49,23 @@ class ChordDecoder:
                 max_similarity = similarity
                 detected_chord = chord
 
-        self.current_chord = detected_chord
         return detected_chord
 
-    # TODO: Delete parameters
+    def smooth_chord(self, detected_chord):
+        # Keep the last few detected chords for smoothing
+        self.previous_chords.append(detected_chord)
+        if len(self.previous_chords) > self.smoothing_window:
+            self.previous_chords.pop(0)
+
+        # Most frequent chord in the last few detections
+        return max(set(self.previous_chords), key=self.previous_chords.count)
+
     def audio_callback(self, indata, frames, time, status):
         if status:
             print(f"Status: {status}")
 
         audio = indata[:, 0]
+
         rms_energy = np.sqrt(np.mean(audio ** 2))
 
         if rms_energy < self.silence_threshold:
@@ -63,12 +74,14 @@ class ChordDecoder:
         audio = librosa.util.fix_length(audio, size=self.buffer_size)
         audio = librosa.util.normalize(audio)
 
-        chord = self.detect_chord(audio)
-        if chord:
-            print(f"Detected chord: {chord} (RMS: {rms_energy})")
+        detected_chord = self.detect_chord(audio)
+        if detected_chord:
+            smoothed_chord = self.smooth_chord(detected_chord)
+            if smoothed_chord != self.current_chord:
+                self.current_chord = smoothed_chord
+                print(f"Detected chord: {self.current_chord} (RMS: {rms_energy})")
 
     def start_listening(self):
-        # TODO: Create infinite loop
         try:
             print("Listening for chords... Press Ctrl+C to stop.")
             with sd.InputStream(
