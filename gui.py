@@ -1,15 +1,15 @@
 import tkinter as tk
-import random
 
 
 class Display:
-    def __init__(self, chord_decoder):
+    def __init__(self, chord_decoder, chord_recommender):
         # Initialize the Tkinter window
         self.root = tk.Tk()
         self.root.title("Dynamic Chord Display")
         self.root.geometry("800x400")
 
         self.chord_decoder = chord_decoder
+        self.chord_recommender = chord_recommender
 
         # current ch | recommended ch
         self.left_frame = tk.Frame(self.root)
@@ -38,12 +38,6 @@ class Display:
 
         self.update_chord()
 
-    def get_random_chords(self):
-        """
-        Generate a list of random chords to recommend.
-        """
-        chords = ["C", "D", "E", "F", "G", "A", "B", "C#m", "D#m", "Em", "Fm", "G#m", "Am", "Bm"]
-        return random.sample(chords, 5)  # Return a random sample of 5 chords
 
     def update_chord(self):
         """
@@ -52,14 +46,19 @@ class Display:
         chord = self.chord_decoder.get_chord()
         if chord:
             self.chord_label.config(text=chord)
-            recommended_chords = self.get_random_chords()  # Get the list of recommended chords
-            self.recommendation_label.config(text=f"Recommended Chords:\n" + "\n".join(recommended_chords))
+            if chord  != "None":
+                try:
+                    recommended_chords = self.chord_recommender.get_recommended_chords(chord,
+                                                                   key="C")  # Get the list of recommended chords with key C
+                    self.recommendation_label.config(text=f"Recommended Chords:\n" + "\n".join(recommended_chords))
+                except KeyError:
+                    print(f"Chord '{chord}' not found in chord_chromas dictionary")
 
-        self.root.after(100, self.update_chord)  # This updates every 100ms (10 Hz)
+        self.root.after(10, self.update_chord)  # This updates every 10ms (1 Hz)
 
     def run(self):
         self.root.mainloop()
-
+#
 # if __name__ == "__main__":
 #     detector = cd()
 #     gui = Display(detector)
